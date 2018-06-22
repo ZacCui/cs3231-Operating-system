@@ -1,0 +1,100 @@
+Created by Ziyi Cui(z5097491) and Fengqing Liu(z5095136)
+
+============================================ Structure Design ============================================
+struct file_descriptor {
+    int             index;              // index in global opened file table
+    int             mode;               // premission
+};
+
+struct opened_file {					
+    struct vnode*   of_vnode;           // link to vnode
+    off_t           of_offset;          // offset for vnode
+    int             of_refcount;        // refcount
+    struct lock*    of_lock;            // lock for offset
+};
+
+struct opened_file** of_table;          // global opened files table
+struct lock* dup_lock;                  // global file closing lock
+
+//************ in Proc.c **************
+struct proc {
+    ...
+    struct file_descirptor fd_table[OPEN_MAX];      // fd_table for each process
+}
+
+Each process have a file_descriptor table records the file_descirptors owned by the process.
+file_descirptor records the position of the file in the global opened file table, and the file premission
+opened_file have a link to the vnode with its position, and lock for dup2/close and position.
+We init the file_descriptor table for (0:stdin, 1:stdout, 2:stderr) and init the global opened file table 
+in the runprogram.c if of_table not initialized. Then we can use them in our syscall.c to call the file.c
+ function (open, close, read, write ... etc). 
+Also, we store the error number into the parameter err in the functions below if error occurs during the 
+function call, and then we can get err in syscall.c we set tf->a3 to 1 to indicates error occurs and 
+set tf->v0 to the error number in err.
+
+============================================    OPEN    ============================================
+int sys_open(const char* filename, int flags, mode_t mode, int* err);
+
+Check all arguments is valid then, we check if there still have free space for the new open file(Do 
+not excess the OPEN_MAX). If we found, then create a opened file in the global opened file table, and
+link it to the corresponding vnode. Set the offset to the end if O_APPEND set. Add the file_descriptor
+in file_descriptor table in the corresponding process. Return the index of the file in the 
+file_descriptor table as the file handler.
+
+
+============================================    CLOSE   ============================================
+int sys_close(int fd, int* err);
+
+Close the filehandle fd.
+
+Check the fd is vaild first, and then find and clean the data in file_descriptor table[fd], clean
+opened_file_table[file_descriptor table[fd].index] if neccesary.
+Lock machinery is the same as dup2.
+
+
+============================================    READ    ============================================
+ssize_t sys_read(int fd, void *buf, size_t nbytes, int* err);
+
+Check the fd is valid first, and then find the id = file_descriptor table[fd] from the current process.
+find the vonde from opened_file_table[id], resvere kernal buffer with the size nbytes for iovec 
+because we need kinit_uio() function (Initialize a uio suitable for I/O from a kernel buffer), after we
+kinit_uio() we can read data from the vnode we found before by using the function VOP_READ(vnode,uio).
+We read data from vnode to the buffer uio, after that we need use function copyout() copy the kernal 
+buffer to the userland buffer(buf). If copyout() success, then we update the offset in the 
+opened_file_table[id]. Note that we need lock the offset before we start call uio_kinit() because we
+ensure of_offset cannot be changed by other function calls, and then we do not release the lock until
+we success copyout and the of_offset updated. 
+
+
+============================================    WRITE   ============================================
+
+ssize_t sys_write(int fd, const void *buf, size_t nbytes, int* err);
+
+Check the fd is valid first, and then find the id = file_descriptor table[fd] from the current process.
+find the vonde from opened_file_table[id], resvere kernal buffer with the size nbytes for iovec 
+because we need kinit_uio() function (Initialize a uio suitable for I/O from a kernel buffer), after we
+kinit_uio() we can write data from the buf to the vnode we found by using the function VOP_WRITE(vnode,uio).
+We write data from the buffer uio to the vnode, before that we need use function copyin() copy the userland 
+buffer(buf) to the kernal buffer we reserved. If VOP_WRITE() success, then we update the offset in the opened_file_table[id]. Note that we need lock the offset before we start call uio_kinit() because we ensure 
+of_offset cannot be changed by other function calls, and then we do not release the lock until
+we success VOP_WRITE() and the of_offset updated. 
+
+
+============================================    LSEEK   ============================================
+
+off_t sys_lseek(int fd, uint64_t offset, int mode, int* err);
+
+First check if fd is valid, then check if fd is seekable. After checking, retrive the size of vnode 
+of fd, then acquire the fd lock to get current offset and compute result offset. If result is good, 
+assign it back to offset and return.
+Lock in opened_file is used to keep the offset unchanged during reading and writing offset.
+
+============================================    DUP2    ============================================
+
+int sys_dup2(int from, int to, int* err);
+
+Lock the dup_lock to ensure dup2 is atomic (make sure from is available during dup2).
+First check if from and to are vaild, and if they are equal.
+If to exist, close to, and close the opened_file in to if refcount is 0.
+Copy from to to, increase refcount of opened_file in from.
+Release lock. 

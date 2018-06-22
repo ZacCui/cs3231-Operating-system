@@ -1,0 +1,73 @@
+Created by Ziyi Cui(z5097491) and Fengqing Liu(z5095136)
+
+Frame table:
+	Use an array of boolean to represet the frame table,
+	Each element of the array map to a chuck of physical memory,which indcates 
+	whether this chuck of physical memory is free or busy.
+	
+	True in frame table means free, False means busy.
+	Frame table is a global table so that everytime we want to use the frame table we need lock the table
+	We Initialise the frame table in the function vm_bootstrap
+	Manage free frames and allocate pages in the function alloc_kpages
+
+
+Hash page Table:
+struct hash_page_table {
+    uint32_t entryHI;			// store the vaddr
+    uint32_t entryLO;			// store the paddr
+    uint32_t next;				// next entry
+};
+	we use a function hpt_hash() to generate a key for address space with a fault address
+
+	vm_fault:
+	check the faulttype firstly, if we can't handle the faulttype, then simply retuen the error number.
+	Check the whether the current procoss and its address space is valid or not
+	If not, then simply return the error number.
+	Next, check does the fault address in the address space of current process
+	If not, then simply return the error number.
+	After that, we try to find the memory address in the hash page table by its key.
+	If we found:
+		write the enrtyhi and entrylo into TLB
+	else:
+		find the next unused area, and the try to find free physical memory from frametable map to it, 
+		then update TLB
+		If there are no free memory in frametable or the hash page table is full, we simply return EFAULT.
+
+
+
+Address_space struct:
+struct as_seg {
+    vaddr_t vbase;				// vritral address base
+    size_t size;				// number of pages
+    mode_t mode;				// premession
+    mode_t bk_mode;				// premession back up
+    struct as_seg* next;		// next segnment
+};
+
+struct addrspace {
+	struct as_seg * first;		// Use the first as stack_segnment
+    uint32_t asid;
+};
+	We use single linked-list structure to represent the address space so that we don't need worry about 
+	the problem that segnments number is not fixed, and the first node store the stack segment. 
+	The vritral address base, number of pages and permession for each segnment in each node.
+
+	as_create : create a new address space struct and init the stack segnmet
+
+	as_copy: create a new address space that is an exact copy of an old one, and create a new region of 
+	physical memory for the new address space, after that updates the global hash page table and the frame table.
+
+	as_destroy: dispose of an address space, and delete the corresponding records in the hash page table, 
+	and re-insert all records to keep the consistent of hash page table   
+
+	as_activate: make curproc's address space the one currentl "seen" by the processor, and flush the TLB 
+
+	as_define_region: set up a region of memory by adding a new node at the end of list
+
+	as_define_stack: update the stack pointer, because we already init stack region in as_create.
+
+	as_prepare_load: get the write premession to mode before actually loading from an executable into the address space.
+
+	as_complete_load: restore the premession from bk_mode into the mode.
+
+
