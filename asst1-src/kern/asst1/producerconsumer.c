@@ -1,5 +1,7 @@
 /* This file will contain your solution. Modify it as you wish. */
 #include <types.h>
+#include <synch.h> 
+#include <lib.h>
 #include "producerconsumer_driver.h"
 
 /* Declare any variables you need here to keep track of and
@@ -7,6 +9,11 @@
    below. You can change this if you choose another implementation. */
 
 static struct pc_data buffer[BUFFER_SIZE];
+static int buffer_head = 0;
+static int buffer_tail = 0;
+static struct lock *buffer_lock;
+static struct semaphore *safe_consumer;
+static struct semaphore *safe_producer;
 
 
 /* consumer_receive() is called by a consumer to request more data. It
@@ -16,12 +23,13 @@ static struct pc_data buffer[BUFFER_SIZE];
 struct pc_data consumer_receive(void)
 {
         struct pc_data thedata;
-
-        (void) buffer; /* remove this line when you start */
-
-        /* FIXME: this data should come from your buffer, obviously... */
-        thedata.item1 = 1;
-        thedata.item2 = 2;
+        P(safe_consumer);
+        lock_acquire(buffer_lock);
+        thedata = buffer[buffer_head];
+        ++buffer_head;
+        buffer_head %= BUFFER_SIZE;
+        lock_release(buffer_lock);
+        V(safe_producer);
 
         return thedata;
 }
@@ -31,7 +39,13 @@ struct pc_data consumer_receive(void)
 
 void producer_send(struct pc_data item)
 {
-        (void) item; /* Remove this when you add your code */
+        P(safe_producer);
+        lock_acquire(buffer_lock);
+        buffer[buffer_tail] = item;
+        ++buffer_tail;
+        buffer_tail %= BUFFER_SIZE;
+        lock_release(buffer_lock);
+        V(safe_consumer);
 }
 
 
@@ -42,10 +56,25 @@ void producer_send(struct pc_data item)
 
 void producerconsumer_startup(void)
 {
+        buffer_lock = lock_create("buffer_lock");
+        if (buffer_lock == NULL) {
+                panic("producerconsumer: lock create failed");
+        }
+        safe_producer = sem_create("safe_producer", BUFFER_SIZE);
+        if (safe_producer == NULL) {
+                panic("producerconsumer: sem create failed");
+        }
+        safe_consumer = sem_create("safe_consumer", 0);
+        if (safe_consumer== NULL) {
+                panic("producerconsumer: sem create failed");
+        }
 }
 
 /* Perform any clean-up you need here */
 void producerconsumer_shutdown(void)
 {
+        lock_destroy(buffer_lock);
+        sem_destroy(safe_producer);
+        sem_destroy(safe_consumer);
 }
 

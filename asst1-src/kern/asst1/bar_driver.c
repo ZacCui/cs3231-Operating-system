@@ -15,7 +15,7 @@
  *
  */
 
-/* #define PRINT_ON */
+//#define PRINT_ON 
 
 /* this semaphore is for cleaning up at the end. */
 static struct semaphore *alldone;
@@ -62,7 +62,7 @@ static void customer(void *unusedpointer, unsigned long customernum)
         (void) unusedpointer; /* avoid compiler warning */
 
         order.go_home_flag = 0;
-
+        //int counter = 0;
         i = 0; /* count number of iterations */
         do {
 
@@ -75,9 +75,37 @@ static void customer(void *unusedpointer, unsigned long customernum)
                 for (j = 0; j < DRINK_COMPLEXITY; j++) {
                         order.requested_bottles[j] = 0;
                 }
-
                 /* I'll have a beer. */
+
+                //Test 0
                 order.requested_bottles[0] = BEER;
+
+                // uncomment the counter first and comment test 0, then do the follow tests
+                //Test 1
+                /*
+                order.requested_bottles[0] = counter++ % 11;
+                order.requested_bottles[1] = counter++ % 11;
+                order.requested_bottles[2] = counter % 11;
+                */
+                //Test 2
+                /*
+                order.requested_bottles[0] = counter++ % 11;
+                order.requested_bottles[1] = counter++ % 11;
+                order.requested_bottles[2] = counter++ % 11;
+                */
+                //Test 3
+                /*
+                if(counter%4){
+                    order.requested_bottles[0] = counter++ % 11;
+                    order.requested_bottles[1] = counter++ % 11;
+                    order.requested_bottles[2] = counter % 11;
+                }else{
+                    order.requested_bottles[0] = ++counter % 11;
+                    order.requested_bottles[1] = ++counter % 11;
+                    order.requested_bottles[2] = (counter+1) % 11;
+                }*/
+                // lock counter to create more test cases
+
 
                 /* order the drink, this blocks until the order is fulfilled */
                 order_drink(&order);
@@ -144,6 +172,8 @@ static void bartender(void *unusedpointer, unsigned long staff)
 #endif
 
                 order = take_order();
+
+                //kprintf("serve order: %d, %d, %d\n", order->requested_bottles[0],order->requested_bottles[1],order->requested_bottles[2]);
 
                 if (order->go_home_flag == 0) {
 

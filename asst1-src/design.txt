@@ -1,1 +1,24 @@
-Place your design document here.
+==================== PART A ====================
+Use a lock to protect counter. The lock is acquired just
+before counter is readed and released after counter is used.
+==================== PART B ====================
+The deadlock is in Circular Wait condition, so we simply
+changed the order of locks, make the resource order is the same.
+==================== PART C ====================
+The buffer provided is used as a circular buffer.
+Semephores are used to make sure producers don't exceed
+the buffer limit and consumers have items to receive.
+A lock is used to protect the buffer when reading or writing
+are performed to the buffer.
+==================== PART D ====================
+Create a circular-buffer to hold customers' orders.
+Use semaphores to ensure the number of orders in
+the order buffer cannot excess number of customers.
+Also use semaphores, let bartenders do not take null
+orders.
+Everytime, only one bartender can access all the bottles
+to fill order, after that the bartender will wake up next
+bartender to fill order, and the order of bartender take 
+orders is the same as customers sent the order.
+In this case, we can prevent both
+deadlock and starvation.

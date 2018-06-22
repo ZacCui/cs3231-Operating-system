@@ -1,0 +1,8 @@
+*.o
+build/*
+kern/compile/*
+*.out
+.vscode
+*.swp
+testscripts
+userland

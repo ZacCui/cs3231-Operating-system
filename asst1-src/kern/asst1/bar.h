@@ -17,6 +17,8 @@ struct barorder {
         unsigned int requested_bottles[DRINK_COMPLEXITY]; /* Do not change */
         int go_home_flag;                                 /* Do not change */
         struct glass glass;                               /* Do not change */
+        int id;
+        int staff;
 
         /* This struct can be extended with your own entries below here */ 
 
